@@ -4,6 +4,8 @@
 
 ファミコンの映像がブラウン管でどう見えたか — コンポジット信号による色のにじみ、回り続ける偽色、走査線、蛍光体の残光 — を再現する描画仕様です。**AI エージェント（あるいは人）が仕様だけから作り直せる**ように書いてあります。新規のエミュレータでも、既存エミュレータの改造でも、シェーダでも構いません。
 
+**tricycle-tube** は、この技術要素の集合に付けた名前です。*tri* + *cycle* は、色の位相が 3 つの状態を巡ること、*tube* は再現対象のブラウン管を指します。ロゴが「ブラウン管を乗せた三輪車」なのはそのためです。
+
 - **[spec/SPEC.md](spec/SPEC.md)** — 仕様（英語が正）。[日本語版](spec/SPEC.ja.md)
 - **[conformance/vectors.json](conformance/vectors.json)** — 参照実装が生成した期待出力と許容差
 - **[reference/crt_reference.py](reference/crt_reference.py)** — 純 Python の参照実装（依存なし）
