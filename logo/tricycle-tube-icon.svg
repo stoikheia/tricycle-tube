@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="640" height="640">
+  <defs>
+    <clipPath id="screen"><rect x="262" y="124" width="196" height="140" rx="22" ry="22"/></clipPath>
+    <pattern id="scan" width="4" height="5" patternUnits="userSpaceOnUse">
+      <rect y="3" width="4" height="2" fill="#000" opacity="0.28"/>
+    </pattern>
+  </defs>
+  <rect width="640" height="640" rx="96" fill="#f4efe4"/>
+  <g transform="translate(320 320) scale(1.3) translate(-320 -335) translate(-19 0)">
+
+  <!-- ===== tricycle, side view, facing left ===== -->
+  <!-- rear wheels (far one first, lighter) -->
+  <circle cx="470" cy="432" r="40" fill="#f4efe4" stroke="#5b544d" stroke-width="12"/>
+  <circle cx="470" cy="432" r="6" fill="#5b544d"/>
+  <!-- rear step platform between the rear wheels -->
+  <circle cx="496" cy="442" r="40" fill="#f4efe4" stroke="#1e1b18" stroke-width="14"/>
+  <circle cx="496" cy="442" r="8" fill="#1e1b18"/>
+
+  <!-- frame: head tube -> down tube -> rear axle, seat tube up to the saddle -->
+  <g stroke="#1e1b18" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M240 300 L240 356"/>                 <!-- head tube / fork top -->
+    <path d="M240 318 C 284 332, 340 338, 384 334 C 428 336, 456 376, 470 432"/>   <!-- horizontal to under the saddle, then a gentle drop to the rear axle -->
+  </g>
+  <!-- fork down to the front hub -->
+  <g stroke="#1e1b18" stroke-width="14" stroke-linecap="round" fill="none">
+    <path d="M240 356 L228 418"/>
+  </g>
+  <!-- saddle -->
+  <path d="M336 324 Q396 304 458 324 L452 338 L344 338 Z" fill="#1e1b18"/>
+  <!-- handlebar: stem up from the head tube, bar curving forward with grips -->
+
+  <!-- big front wheel with spokes, crank and pedal -->
+  <circle cx="228" cy="418" r="62" fill="#f4efe4" stroke="#1e1b18" stroke-width="14"/>
+  <g stroke="#1e1b18" stroke-width="6" stroke-linecap="round">
+    <line x1="228" y1="418" x2="228" y2="364"/><line x1="228" y1="418" x2="275" y2="445"/><line x1="228" y1="418" x2="181" y2="445"/>
+  </g>
+  <circle cx="228" cy="418" r="11" fill="#1e1b18"/>
+  <g stroke="#1e1b18" stroke-width="9" stroke-linecap="round"><line x1="228" y1="418" x2="264" y2="396"/><line x1="264" y1="396" x2="284" y2="396"/></g>
+
+  <!-- ===== the tube, riding on the saddle ===== -->
+  <g transform="translate(48 28)">
+    <!-- body -->
+    <rect x="236" y="104" width="248" height="190" rx="34" ry="34" fill="#1e1b18"/>
+    <rect x="250" y="118" width="220" height="162" rx="28" ry="28" fill="#8c7b6a"/>
+    <g clip-path="url(#screen)">
+      <rect x="262" y="124" width="196" height="140" fill="#1a2a44"/>
+      <g transform="translate(360 194) rotate(-28)">
+        <rect x="-300" y="-96" width="600" height="64" fill="#e9433b"/>
+        <rect x="-300" y="-32" width="600" height="64" fill="#3ec46d"/>
+        <rect x="-300" y="32"  width="600" height="64" fill="#3b7ff5"/>
+      </g>
+    </g>
+    <rect x="262" y="124" width="196" height="140" rx="22" ry="22" fill="none" stroke="#1e1b18" stroke-width="8"/>
+    <g fill="#1e1b18"><circle cx="420" cy="272" r="6"/><circle cx="442" cy="272" r="6"/></g>
+  </g>
+  <!-- arm from the tube to the near handlebar grip -->
+
+  <!-- up-handlebar: U from the clamp (radius 30% smaller than v7), ends bent into horizontal grips -->
+  <g stroke="#1e1b18" stroke-width="12" stroke-linecap="round" fill="none">
+    <path d="M240 300 L240 266"/>
+    <path d="M240 266 C 204 266, 182 246, 182 212 C 182 198, 188 192, 200 192"/>
+    <path d="M240 266 C 276 266, 298 246, 298 212 C 298 198, 304 192, 316 192"/>
+  </g>
+  <g fill="#1e1b18"><rect x="196" y="184" width="30" height="16" rx="8"/><rect x="312" y="184" width="30" height="16" rx="8"/></g>
+
+  </g>
+</svg>
