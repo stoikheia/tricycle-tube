@@ -216,6 +216,7 @@ otherwise:               out = (6*F[f] + 3*F[f-1] + 1*F[f-2] + 5) div 10    (div
 - Advance the afterglow per emulated frame. Even if the screen refreshes at 30 Hz, the presented picture is the blend of the last three frames.
 - When past frames do not exist (frames 0 and 1), substitute the current frame only for the missing ones: at frame 1, F[f−1] = F[0] and F[f−2] is replaced by F[1]. S is chosen only among existing frames (none at frames 0 and 1; F[0] is a candidate at frame 2).
 - While rendering (2-frame cycle) S = F[f−2]; while blanked (3-frame cycle) S = F[f−3]. Keep three past frames.
+- Permitted variant (lighter): apply this stage to the signal-stage images (8W×H) and run the CRT stage afterwards. The blend is linear, so the picture is almost the same, but clamping at 255 and the motion threshold act on different values; such an implementation is not expected to match the `persistence` and `area_average` vectors and must say that it uses the variant. Keeping the history at signal-stage size and recomputing the CRT stage for each past frame (§8) is not this variant: it is the normative order.
 
 Background: the row phase changes every frame, so the rainbow pattern changes every frame. On real hardware the phosphor and the eye smooth it; an LCD has no afterglow, so the blend supplies it. Motion is detected against the same-phase frame because static pixels are identical when the phase is identical. Luma alone is not enough, since the Famicom has many colours that differ only in hue at equal brightness.
 
@@ -280,13 +281,11 @@ Representative values: `$0F` = (0,0,0), `$00` = (98,98,98), `$10` = (171,171,171
 | Tag | Item | State (v0.5) |
 |---|---|---|
 | D-no-same-phase | What to do when no same-phase frame exists (e.g. at the moment the phase sequence switches) | no motion test, afterglow applied (provisional) |
-| D-grid | Width of the intermediate image. The prototype uses 8W (2048) with stripe period 9; another project's display design chose 12W (3072) with period 9, giving finer stripes. With 8W, windows wider than 2048 columns make the downscale stage magnify horizontally, and a faint beat appears in the mask (observed in a WGSL implementation) | prototype (8W) is normative |
-| D-afterglow-position | Whether to allow a lighter variant that applies the afterglow right after the signal stage (8W×H). The blend is linear, so the picture is almost the same, but saturation and the motion threshold behave differently | after the CRT stage (as the prototype) |
 | D-emphasis | Support for the emphasis bits. Attenuated voltage tables exist in the source material. Observed to be always 0 in the game studied so far | not supported |
 | D-noise | Whether to include the prototype's phase noise (off by default). A WGSL implementation keeps its own provisional scheme (up to 1° per row), off by default and marked experimental | not included |
 | D-vectors | Normative behaviour not covered by vectors: the no-same-phase case, k ≠ 12 and the automatic stripe period (including how `round` handles halves), stripe periods not divisible by 3, general cols ≠ 8W, the standard size (256×240) | not produced |
 
-Settled: the frame phase is accumulated from the real frame length (§3.3). The YIQ→RGB coefficients are derived from the standard definition (§4.2). The default display phase mode is the fixed 3-frame cycle, the afterglow weights are 6 : 3 : 1, and the luma filter is the notch (decided 2026-10-04; switching is a future setting).
+Settled: the frame phase is accumulated from the real frame length (§3.3). The YIQ→RGB coefficients are derived from the standard definition (§4.2). The default display phase mode is the fixed 3-frame cycle, the afterglow weights are 6 : 3 : 1, and the luma filter is the notch (decided 2026-10-04; switching is a future setting). The intermediate image is 8W wide (normative; with windows wider than 8W the downscale stage magnifies horizontally and a faint beat can appear in the mask), and the afterglow is applied after the CRT stage, with the lighter order allowed as a declared variant (§6) (decided 2026-10-06).
 
 ## 11. Sources
 
