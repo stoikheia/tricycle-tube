@@ -1,6 +1,6 @@
 # Display Specification v0.5 (draft) — Reproducing the Famicom composite signal and its CRT look
 
-Version: v0.5 draft (2026-10-06). English is the normative text; [SPEC.ja.md](SPEC.ja.md) is the Japanese edition it was written from.
+Version: v0.6 draft (2026-10-07). English is the normative text; [SPEC.ja.md](SPEC.ja.md) is the Japanese edition and follows it.
 Reference implementation: [reference/crt_reference.py](../reference/crt_reference.py). Conformance vectors: [conformance/vectors.json](../conformance/vectors.json).
 
 This document is the core of the project. The goal is that an AI agent (or a person) given only this document and the conformance vectors can implement the same picture in a new emulator, in a modified existing emulator, or as a shader. Two blind reproduction tests have passed (§12).
@@ -47,6 +47,8 @@ Background: a fixed intermediate image keeps the scanline and stripe structure i
 1. The palette index (6 bits) of every pixel, before any conversion to colour.
 2. The frame phase P (0..11): the subcarrier phase at the start of the frame. See §3.3.
 
+Anchoring: P is the phase of the first sample of visible pixel (0, 0); row y of the full 240-row picture starts at `P + 4y`. If the host crops rows before this pipeline, it must keep the original row numbers (e.g. a picture starting at row 8 uses y = 8 for its first row). Indices are taken after the PPU's greyscale processing: when PPUMASK greyscale is set, pass `index & $30`.
+
 ### 3.2 How hosts obtain the index
 
 | Host | Method |
@@ -75,7 +77,7 @@ Per host:
 | Host | Method |
 |---|---|
 | New emulator, modified emulator | Accumulate the dots the PPU actually produced each frame; the rendering-enabled/disabled behaviour falls out automatically |
-| Host that only knows a frame number (shaders, …) | Assume rendering is always on: P = 0 for even frame numbers, 4 for odd |
+| Host that only knows a frame number f (shaders, …) | Fixed 3-frame cycle (default): P = 4 × (f mod 3). Fixed 2-frame cycle, or hardware-faithful mode without dot counts: P = 0 for even f, 4 for odd f (assumes rendering is always on) |
 
 **Display phase mode**: how the phase advances is a display-side setting.
 
@@ -161,7 +163,7 @@ each component = clamp(floor(component*255 + 0.5), 0, 255)
 Background:
 - Two samples half a cycle (6 samples) apart carry the subcarrier with opposite sign, so their mean cancels the colour and leaves luma. The footprint is only 7 samples, so a one-dot (8-sample) black pixel stays nearly black. The following 3-sample mean rounds the edges slightly. The price is a thin vertical striping at colour boundaries.
 - The prototype used a 12-sample moving average (one full cycle) followed by a 5-sample mean (`mean(sig[i-6 .. i+5])` then `box(·, 2)`). Isolated black pixels floated up to grey (mean luma of 60 isolated black pixels 46.8 → 35.3 with the notch), so the notch became the default on 2026-10-04. The reference keeps the old filter as `LUMA_MEAN12`.
-- Chroma is recovered by multiplying with the subcarrier and band-limited to roughly 1.3 MHz (I) and 0.6 MHz (Q). Horizontal colour bleed and the rainbow on fine patterns (cross-colour) arise here naturally.
+- Chroma is recovered by multiplying with the subcarrier and low-pass filtered with the double box averages. At the sampling rate of 8 samples per dot (≈ 42.95 MHz) their −3 dB points are about 0.81 MHz (I) and 0.47 MHz (Q), first zeros 2.53 MHz and 1.48 MHz; the widths were chosen by eye and are narrower than the nominal NTSC I/Q bandwidths (1.3 / 0.6 MHz). Horizontal colour bleed and the rainbow on fine patterns (cross-colour) arise here naturally.
 - `rot` is the angle at which `$16` is reddest, `$1A` greenest and `$12` bluest (§4.3).
 - The RGB coefficients are derived from the standard definition (6 decimals): Y = 0.299R + 0.587G + 0.114B, U = 0.492111(B − Y), V = 0.877283(R − Y), I = −U sin33° + V cos33°, Q = U cos33° + V sin33°, inverted.
 - The saturation 1.6, the notch luma filter and the double-box band limits are a simple construction chosen by eye in the project's prototype and sample tests.
@@ -193,9 +195,9 @@ Steps:
 6. **Bloom**: take the signal stage's RGB (before enlargement), apply a radius-3 box average (7 values) horizontally and truncate, then a radius-2 box average (5 values) vertically to that integer image and truncate. Enlarge it vertically by k with bilinear interpolation (width unchanged), pixel-centre based: for output row Y let `v = (Y + 0.5)/k − 0.5`, upper row `y0 = clamp(floor(v), 0, H−1)`, lower row `y1 = min(H−1, y0 + 1)`, weight `u = clamp(v − y0, 0, 1)`, value `a*(1−u) + b*u`, rounded with `floor(x + 0.5)`.
    Finally, per component, `out = min(255, floor(out of step 5 + bloom image * bloom * s))`.
 
-When k changes, the default stripe period is `max(3, round(k / 1.3))`.
+When k changes, the default stripe period is `max(3, floor(k / 1.3 + 0.5))` (9 for k = 12).
 
-Background: the Famicom PPU always emits exactly 262 lines and never offsets vertical sync by half a line, so the CRT draws every frame over the same scanlines (240p; no interlace). The undrawn lines remain as dark gaps — that is the scanline look, represented here by a Gaussian profile over k rows per scanline: bright in the middle of the row, dark at the top and bottom; gap is the beam width. Gain compensates for the light lost to stripes and scanlines. Bloom is the faint halo around bright areas.
+Background: the NTSC Famicom PPU (2C02) always emits 262 lines per frame (on some odd frames the pre-render line is one dot short, §3.3) and never offsets vertical sync by half a line, so the CRT traces every frame over the same scanlines (240p; no interlace). The spaces between the beam traces remain dark — that is the scanline look, represented here by a Gaussian profile over k rows per scanline: bright in the middle of the row, dark at the top and bottom; gap is the beam width. Gain compensates for the light lost to stripes and scanlines. Bloom is the faint halo around bright areas.
 
 ## 6. Afterglow stage (normative)
 
@@ -215,7 +217,7 @@ otherwise:               out = (6*F[f] + 3*F[f-1] + 1*F[f-2] + 5) div 10    (div
 - Blend the un-blended images (do not feed the output back into the next frame).
 - Advance the afterglow per emulated frame. Even if the screen refreshes at 30 Hz, the presented picture is the blend of the last three frames.
 - When past frames do not exist (frames 0 and 1), substitute the current frame only for the missing ones: at frame 1, F[f−1] = F[0] and F[f−2] is replaced by F[1]. S is chosen only among existing frames (none at frames 0 and 1; F[0] is a candidate at frame 2).
-- While rendering (2-frame cycle) S = F[f−2]; while blanked (3-frame cycle) S = F[f−3]. Keep three past frames.
+- When the phase sequence runs 0, 4, 0, 4 (2-frame cycle) S = F[f−2]; when it runs 0, 4, 8 (3-frame cycle, including the default fixed mode) S = F[f−3]. Keep three past frames.
 - Permitted variant (lighter): apply this stage to the signal-stage images (8W×H) and run the CRT stage afterwards. The blend is linear, so the picture is almost the same, but clamping at 255 and the motion threshold act on different values; such an implementation is not expected to match the `persistence` and `area_average` vectors and must say that it uses the variant. Keeping the history at signal-stage size and recomputing the CRT stage for each past frame (§8) is not this variant: it is the normative order.
 
 Background: the row phase changes every frame, so the rainbow pattern changes every frame. On real hardware the phosphor and the eye smooth it; an LCD has no afterglow, so the blend supplies it. Motion is detected against the same-phase frame because static pixels are identical when the phase is identical. Luma alone is not enough, since the Famicom has many colours that differ only in hue at equal brightness.
@@ -229,7 +231,7 @@ Shrink the intermediate image (8W × kH) to the display size by **area averaging
 - Horizontally, output column o covers the source range `[o * src_width / out_width, (o+1) * src_width / out_width)`. The overlap length of this range with each source pixel `[i, i+1)` is the horizontal weight. Same vertically.
 - A source pixel's weight = horizontal × vertical weight. Per component, `weighted sum ÷ sum of weights`, rounded with `floor(x + 0.5)`.
 - Two-tap bilinear interpolation must not be used when the scale factor is below 1/2 (scanlines and stripes turn into moiré).
-- The display aspect (4:3-like or square pixels) and the vertical crop (240 or 224 rows) are the host's decision. This spec ends at the intermediate image.
+- The host chooses the output size, the display aspect (4:3-like or square pixels) and the vertical crop (240 or 224 rows); this stage defines how to resample to the size the host chose.
 
 ## 8. Guidance per implementation form (background)
 
@@ -266,11 +268,12 @@ pattern B: 30 0F 16 21 16 16 2A 2A 12 21 30 0F 27 27 1A 0F     (only the first f
 | `moving_pixels_at_frame5` | in `case_motion`, the number of pixels of frame 5 with S (frame 3) present and d > 24. `total_pixels` is the pixel count | exact for integer implementations |
 | `area_average` | the **afterglow output** of frame 3 of `case_motion` (128×36) shrunk to 50×13, all pixels (`output_rgb_hex`) | ±1 per component |
 
-- Hashes are SHA-256 over the raw bytes, row-major, 3 bytes (R, G, B) per pixel, no header (13824 bytes for 128×36). A floating-point implementation that wants to check hash-only items with a tolerance should run the reference implementation and compare pixels.
+- Hashes are SHA-256 over the raw bytes, row-major, 3 bytes (R, G, B) per pixel, no header (13824 bytes for 128×36). **Verification is a separate step from reproduction**: an implementation is written from this spec alone, but checking a floating-point implementation against hash-only items needs the reference pixels, which are obtained by running the reference implementation (`reference/crt_reference.py`, `conformance/gen_vectors.py`). Running it is part of verification; reading it while implementing is not part of reproduction. Generating the expected data from the reference also lets users who modify the pipeline produce vectors that match their change.
 - **Tolerances are per stage** (the difference when the stage is fed the reference implementation's output for the previous stage). End-to-end comparisons accumulate the stages' differences; the end-to-end tolerance is ±4 (measured: 2 for a WGSL implementation).
-- **Motion-test boundary**: in floating-point implementations the motion test (d > 24) can flip on boundary pixels, and only those pixels then differ by up to the weight of a frame (a dozen or so). Pixels whose d in the reference is 22..26 are excluded from the tolerance; report their count. The published vectors contain no such pixels.
+- **Motion-test boundary**: if an implementation's CRT-stage output differs from the reference by at most ε per component, its motion distance d can differ from the reference's by up to 6ε, so the test (d > 24) can flip on pixels whose reference d lies in (24 − 6ε, 24 + 6ε]. A flipped pixel can differ by up to 0.4 × 255 ≈ 102 levels (current frame alone versus the 6 : 3 : 1 blend). Exclude those pixels from the afterglow tolerance (with ε = 2: reference d from 13 to 36) and report how many were excluded. Compare stages separately (each fed the reference's previous-stage output) to keep ε small. The published vectors contain no such pixels.
 - Row 6 is the middle of a source row; rows 11 and 12 straddle a source-row boundary. The vertical beam-spot average only affects boundary rows, so use them to isolate a hash mismatch.
 - Vector keys vs. spec terms: `strength` = s, `mask_period` = stripe period, `spot` = spot radius, `stripe_dim` = d, `gain` = gain, `output_size` = [width, height].
+- `vectors.json` carries `spec_version` = the last spec version that changed any output (currently v0.4); later spec versions that only clarify text keep the same vectors.
 - `palette64_rgb` keys are two upper-case hex digits. `lines` and other `*_hex` values are the concatenated hex of 3 bytes per pixel.
 - The untouched prototype's outputs (before the corrections) are kept in `conformance/vectors-v0-prototype.json`; the reference reproduces them when given the prototype's coefficients, the 12-sample luma filter and phases 0, 4, 8 (`gen_vectors.py` checks this every run). The v0.3 vectors (12-sample luma, standard coefficients) are `conformance/vectors-v0.3-mean12.json`.
 
@@ -289,8 +292,8 @@ Settled: the frame phase is accumulated from the real frame length (§3.3). The 
 
 ## 11. Sources
 
-- Measured voltages (LO / HI, black, white), the 12-phase square-wave rule, and the per-row and per-frame phase shifts: NESdev Wiki, "NTSC video" (measurements by lidnariq). The wiki states that its content is treated as public domain.
-- The frame phase (§3.3) follows from 1 dot = 8 samples and 1 cycle = 12 samples (89342 × 8 ≡ 4, 89341 × 8 ≡ 8 mod 12), consistent with the "NTSC video" page. The wiki's "PPU frame timing" page has a sentence that reads the other way round (3 states normally, 2 when the skipped dot is avoided), which does not match the arithmetic. Not yet verified against captures of real hardware.
+- Measured voltages (LO / HI, black, white), the 12-phase square-wave rule, and the per-row and per-frame phase shifts: NESdev Wiki, "NTSC video", https://www.nesdev.org/wiki/NTSC_video (revision 24244, as archived 2026-09-26; measurements by lidnariq). The wiki states that its content is treated as public domain.
+- The frame phase (§3.3) follows from 1 dot = 8 samples and 1 cycle = 12 samples (89342 × 8 ≡ 4, 89341 × 8 ≡ 8 mod 12), consistent with the "NTSC video" page. The wiki's "PPU frame timing" page (https://www.nesdev.org/wiki/PPU_frame_timing) has a sentence that reads the other way round (3 states normally, 2 when the skipped dot is avoided), which does not match the arithmetic. Not yet verified against captures of real hardware.
 - YIQ→RGB coefficients: computed from the standard definition (§4.2 background). The prototype used values from Bisqwit's published material; replaced in v0.2.
 - The decoding filter structure, the CRT stage, the afterglow stage and the downscale stage: this project's own design, from its prototype.
 - No code from existing shaders or libraries (GTU-famicom, patchy-ntsc, nes_ntsc, fami-rf and others) is used.
@@ -305,4 +308,4 @@ An agent that has never seen the prototype is given only this spec and the vecto
 | 2 | 2026-10-03 | all stages (frame phase, signal, CRT, afterglow, downscale; pure Python, spec v0.2) | **All 38 items matched on the first run** (error 0, implementation unmodified). Sensitivity experiments showed that the afterglow blend depended on floating-point evaluation order (an integer implementation differs on 237/4608 pixels) | v0.3: the afterglow blend redefined as an integer formula and vectors regenerated (the round-2 implementation with that formula matches the new vectors 38/38); downscale weights moved to §7; substitution rule and choice of S (§6), frame numbering (§3.3), edge handling (§2), bilinear formula (§5), test inputs and item definitions (§9) made explicit |
 | — | 2026-10-04 | all stages in WGSL (GPU) with a CPU check implementation, by a separate team, spec v0.4 | CPU: every hash matched, hue rotation 350, moving-pixel counts 1410/1405 matched. GPU: max error 0 (signal), 1 (CRT, afterglow), 1 (downscale) | v0.5: §8 implementation shape and performance, §9 per-stage vs end-to-end tolerance and motion-boundary exclusion, §10 notes |
 
-Revision notes: v0.2 (2026-10-03) changed the frame phase from "always +4" to accumulation from the frame length, and the YIQ→RGB coefficients to values derived from the standard definition (64-colour change ≤ 2/255 per component; hue rotation stays 350°); the afterglow comparison frame changed from "3 frames back" to "the same-phase frame"; vectors regenerated. v0.3 (same day) made the afterglow blend an integer formula (differs from the prototype's floating-point blend by 1 on pixels whose fraction is exactly 0.5). v0.4 (2026-10-04) changed the luma filter to the notch (single colours and the 350° rotation unchanged; pattern, CRT, afterglow and downscale vectors regenerated). v0.5 (same day) added the GPU implementation shape to §8 and the per-stage/end-to-end tolerance distinction and motion-boundary exclusion to §9.
+Revision notes: v0.2 (2026-10-03) changed the frame phase from "always +4" to accumulation from the frame length, and the YIQ→RGB coefficients to values derived from the standard definition (64-colour change ≤ 2/255 per component; hue rotation stays 350°); the afterglow comparison frame changed from "3 frames back" to "the same-phase frame"; vectors regenerated. v0.3 (same day) made the afterglow blend an integer formula (differs from the prototype's floating-point blend by 1 on pixels whose fraction is exactly 0.5). v0.4 (2026-10-04) changed the luma filter to the notch (single colours and the 350° rotation unchanged; pattern, CRT, afterglow and downscale vectors regenerated). v0.5 (same day) added the GPU implementation shape to §8 and the per-stage/end-to-end tolerance distinction and motion-boundary exclusion to §9. v0.6 (2026-10-07) fixed points raised in an external review: frame-number hosts follow the default fixed 3-frame cycle (§3.3); the same-phase frame is stated per phase sequence (§6); the phase anchor, cropped inputs and greyscale input are defined (§3.1); the automatic stripe period uses round-half-up (§5); the chroma bandwidth is stated as measured (§4.2); the 240p note is scoped to the NTSC 2C02 (§5); verification is separated from reproduction and the motion-boundary exclusion is derived from the upstream error (§9); source URLs added (§11). Outputs for the default k = 12 are unchanged.

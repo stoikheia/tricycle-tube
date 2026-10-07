@@ -1,4 +1,4 @@
-"""Reference implementation of the display spec (docs/spec.md). Pure python, no dependencies.
+"""Reference implementation of the display spec (spec/SPEC.md). Pure python, no dependencies.
 
 Derived from the prototype crt_pipeline.py (2026-10-02) with two corrections (spec v0.2):
   1. frame phase is accumulated from the real frame length (89342 dots, or 89341 when the odd-frame dot is skipped)
@@ -199,8 +199,15 @@ def scanline_profile(k, strength=0.6, gap=0.33):
     return [1.0 - strength * (1 - math.exp(-((j + 0.5 - k / 2) / (k * gap)) ** 2)) for j in range(k)]
 
 
-def crt_stage(sigimg, cols, h, k=12, strength=0.6, mask_period=9, spot=1, bloom=0.15, gap=0.33):
-    """Returns RGB image cols x (h*k)."""
+def default_mask_period(k):
+    """Spec 5: max(3, floor(k / 1.3 + 0.5)); 9 for k = 12."""
+    return max(3, int(math.floor(k / 1.3 + 0.5)))
+
+
+def crt_stage(sigimg, cols, h, k=12, strength=0.6, mask_period=None, spot=1, bloom=0.15, gap=0.33):
+    """Returns RGB image cols x (h*k). mask_period None = the spec's default for k."""
+    if mask_period is None:
+        mask_period = default_mask_period(k)
     s = strength
     ow, oh = cols, h * k
     sp = _blur_v(_blur_h(_upscale_v_nearest(sigimg, cols, h, k), ow, oh, spot), ow, oh, spot)

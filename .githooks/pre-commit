@@ -1,19 +1,27 @@
-#!/bin/sh
-# Keep third-party game data out of the repository: no ROM/save images, no large binaries,
-# and raster images only under logo/ and samples/.
-status=0
-for f in $(git diff --cached --name-only --diff-filter=AM); do
-  case "$f" in
-    *.nes|*.fds|*.unf|*.unif|*.sav|*.srm|*.state|*.st[0-9]) echo "pre-commit: refusing ROM/save file: $f"; status=1 ;;
-  esac
-  case "$f" in
-    *.png|*.gif|*.jpg|*.jpeg|*.webp|*.apng)
-      case "$f" in logo/*|samples/*) ;; *) echo "pre-commit: raster image outside logo/ or samples/: $f"; status=1 ;; esac ;;
-  esac
-  if [ -f "$f" ]; then
-    size=$(wc -c < "$f")
-    if [ "$size" -gt 5000000 ]; then echo "pre-commit: file larger than 5 MB: $f"; status=1; fi
-    if head -c 4 "$f" | grep -q "NES" 2>/dev/null && [ "$(head -c 4 "$f" | od -An -c | tr -d ' ')" = "NES\\032" ]; then echo "pre-commit: iNES header found in $f"; status=1; fi
-  fi
-done
-exit $status
+#!/usr/bin/env python3
+"""Keep third-party game data out of the repository. Checks the staged blobs (not the working tree):
+no ROM/save files or iNES images, raster images only under logo/ and samples/, nothing over 5 MB."""
+import subprocess, sys
+
+def git(*args, data=False):
+    return subprocess.run(["git", *args], check=True, capture_output=True).stdout
+
+names = [n.decode("utf-8", "surrogateescape") for n in
+         git("diff", "--cached", "--name-only", "-z", "--diff-filter=AM").split(b"\0") if n]
+bad_ext = (".nes", ".fds", ".unf", ".unif", ".sav", ".srm", ".state") + tuple(f".st{i}" for i in range(10))
+raster = (".png", ".gif", ".jpg", ".jpeg", ".webp", ".apng")
+errors = []
+for n in names:
+    low = n.lower()
+    if low.endswith(bad_ext):
+        errors.append(f"ROM/save file: {n}")
+    if low.endswith(raster) and not (n.startswith("logo/") or n.startswith("samples/")):
+        errors.append(f"raster image outside logo/ or samples/: {n}")
+    size = int(git("cat-file", "-s", f":{n}").strip())
+    if size > 5_000_000:
+        errors.append(f"larger than 5 MB: {n}")
+    if git("cat-file", "blob", f":{n}")[:4] == b"NES\x1a":
+        errors.append(f"iNES header: {n}")
+for e in errors:
+    print("pre-commit:", e)
+sys.exit(1 if errors else 0)

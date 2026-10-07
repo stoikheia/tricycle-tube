@@ -1,6 +1,6 @@
 # Licence for the specification, documentation and logo
 
-The specification (`spec/`), the prompts (`prompts/`), the READMEs and the logo (`logo/`) are licensed under the
+The specification (`spec/`), the prompts (`prompts/`), the READMEs, the logo (`logo/`) and the sample images (`samples/*.png`) are licensed under the
 **Creative Commons Attribution 4.0 International (CC BY 4.0)** licence.
 
 Copyright (c) 2026 stoikheia
@@ -11,5 +11,5 @@ https://creativecommons.org/licenses/by/4.0/legalcode — human-readable summary
 
 Suggested attribution: "tricycle-tube display specification by stoikheia, CC BY 4.0, https://github.com/stoikheia/tricycle-tube".
 
-The code in this repository (`reference/`, `conformance/`, `samples/*.py`) is under the MIT licence; see `LICENSE`.
+The code and data in this repository (`reference/`, `conformance/` including the JSON vectors, `samples/*.py`, `.githooks/`) are under the MIT licence; see `LICENSE`.
 The wordmark in the logo is set in Inter (© The Inter Project Authors, SIL Open Font License 1.1) and converted to outlines; no font files are distributed with this repository.
